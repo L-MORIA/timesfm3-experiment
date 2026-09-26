@@ -1,5 +1,8 @@
 # TimesFM 2.5 + Kronos Mini — Сравнение сигналов MOEX
 
+[![tests](https://github.com/L-MORIA/timesfm3-experiment/actions/workflows/tests.yml/badge.svg)](https://github.com/L-MORIA/timesfm3-experiment/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 AI-ансамбль из двух моделей для прогнозирования цен акций MOEX (Сбербанк преф, Газпром, Лукойл).
 
 ## Суть проекта
