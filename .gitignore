@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tooling
+.freebuff/
+.pytest_cache/
+
+# Logs (gitignored, but created at runtime)
+logs/
+
+# Images
+*.png
+*.jpg
+*.jpeg
+
+# OS
+.DS_Store
+Thumbs.db
+# Temporary diagnostic scripts
+check_*.py

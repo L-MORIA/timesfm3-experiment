@@ -1,0 +1,18 @@
+# timesfm-kronos-comparison dependencies (CUDA — for Ampere sm_80+ / Hopper sm_90)
+# Python 3.12; install inside the project's .venv (NOT Hermes global venv):
+#   uv venv .venv --python 3.12
+#   uv pip install -r requirements-cuda.txt
+#
+# WARNING (2026-07-17): RTX 5060 Ti (Blackwell, sm_120) is NOT SUPPORTED
+# by current PyTorch (stable or nightly). Use the CPU variant there
+# (requirements-cpu.txt / requirements.txt).
+#
+# After install, switch device="cpu" -> device="cuda" in load_kronos()/load_timesfm().
+
+requests
+numpy
+pandas
+matplotlib
+torch --index-url https://download.pytorch.org/whl/cu121
+einops
+timesfm
