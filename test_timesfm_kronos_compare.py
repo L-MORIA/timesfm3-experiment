@@ -1,4 +1,4 @@
-"""Tests for timesfm_kronos_compare — горизонты и устойчивость fetch.
+"""Tests for timesfm_kronos_compare — горизонты, fetch и сигналы.
 
 Запуск (системным Python, где установлен pytest):
     python -m pytest test_timesfm_kronos_compare.py -q
@@ -144,3 +144,54 @@ def test_fetch_skips_empty_data(monkeypatch):
     monkeypatch.setattr(m.time, "sleep", lambda *a, **k: None)
 
     assert m.fetch_moex_candles("SBERP", days=1) is None
+
+
+# ── Тест 5: compute_signal — порог ±2% и знак изменения ────────
+
+def test_compute_signal_thresholds():
+    last = 100.0
+
+    # Ровно на пороге +2% → ПОКУПКА, чуть ниже — ДЕРЖАТЬ.
+    assert m.compute_signal(102.0, last)[0] == "ПОКУПКА"
+    assert m.compute_signal(101.9, last)[0] == "ДЕРЖАТЬ"
+
+    # Ровно на пороге -2% → ПРОДАЖА, чуть выше — ДЕРЖАТЬ.
+    assert m.compute_signal(98.0, last)[0] == "ПРОДАЖА"
+    assert m.compute_signal(98.1, last)[0] == "ДЕРЖАТЬ"
+
+    # В коридоре — ДЕРЖАТЬ.
+    assert m.compute_signal(100.0, last)[0] == "ДЕРЖАТЬ"
+
+
+def test_compute_signal_returns_change_percent():
+    signal, chg = m.compute_signal(110.0, 100.0)
+
+    assert signal == "ПОКУПКА"
+    assert chg == 10.0
+
+
+# ── Тест 6: compare_signals — три ветки согласия ──────────────
+
+def test_compare_signals_agreement():
+    # Одинаковые сигналы → СОВПАДЕНИЕ / ВЫСОКАЯ (независимо от chg).
+    assert m.compare_signals("ПОКУПКА", 5.0, "ПОКУПКА", 0.1) == (
+        "СОВПАДЕНИЕ", "ВЫСОКАЯ",
+    )
+
+
+def test_compare_signals_neutral_when_both_small():
+    # Разные сигналы, но оба изменения < 0.5% → НЕЙТРАЛЬНО / СРЕДНЯЯ.
+    assert m.compare_signals("ПОКУПКА", 0.4, "ДЕРЖАТЬ", -0.3) == (
+        "НЕЙТРАЛЬНО", "СРЕДНЯЯ",
+    )
+
+
+def test_compare_signals_conflict():
+    # Разные сигналы и заметное расхождение → РАСХОЖДЕНИЕ / НИЗКАЯ.
+    assert m.compare_signals("ПОКУПКА", 3.0, "ПРОДАЖА", -2.5) == (
+        "РАСХОЖДЕНИЕ", "НИЗКАЯ",
+    )
+
+    # Один chg большой, другой маленький — всё равно РАСХОЖДЕНИЕ
+    # (условие НЕЙТРАЛЬНО требует оба < 0.5%).
+    assert m.compare_signals("ПОКУПКА", 3.0, "ДЕРЖАТЬ", 0.1)[0] == "РАСХОЖДЕНИЕ"
