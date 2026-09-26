@@ -129,3 +129,7 @@ timesfm-kronos-comparison/
 - `einops`, `requests`, `numpy`, `pandas`, `matplotlib`
 - Kronos Mini — локально из `~/kronos-signal/models/`
 - MOEX ISS API (бесплатно, без ключа)
+
+## Лицензия
+
+[MIT](LICENSE) © 2026 L-MORIA
