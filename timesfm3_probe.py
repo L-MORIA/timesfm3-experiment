@@ -15,7 +15,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 import numpy as np
 
 t0 = time.time()
-from timesfm3 import TimesFM3Evaluator, ModelConfig
+from timesfm3 import TimesFM3Evaluator, ModelConfig  # noqa: E402  (замер времени импорта)
 t_import = time.time() - t0
 print(f"[probe] import timesfm3: {t_import:.1f}s", flush=True)
 
