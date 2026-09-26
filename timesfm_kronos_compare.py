@@ -149,7 +149,8 @@ def kronos_predict(predictor, df_full, pred_len):
         return pred_df["close"].values
     except Exception as e:
         print(f"  [Kronos] ERROR: {e}")
-        import traceback; traceback.print_exc()
+        import traceback
+        traceback.print_exc()
         return None
 
 

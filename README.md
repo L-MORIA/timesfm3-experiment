@@ -90,11 +90,25 @@ timesfm-kronos-comparison/
 ├── requirements-cpu.txt        # CPU-only стек (torch CPU)
 ├── requirements-cuda.txt       # CUDA стек (torch cu121)
 ├── test_timesfm_kronos_compare.py  # pytest-тесты (горизонты, fetch, сигналы)
+├── pyproject.toml              # конфигурация ruff для CI
+├── .github/workflows/tests.yml # CI: pytest + ruff на push/PR
 ├── logs/                       # результаты (автоматически)
 │   └── comparison_YYYYMMDD.log
 ├── .gitignore
 └── README.md
 ```
+
+## Разработка
+
+```bash
+# Тесты (нужен pytest в окружении)
+python -m pytest -q
+
+# Линтер (набор правил — в pyproject.toml)
+ruff check .
+```
+
+Обе проверки гоняются автоматически в GitHub Actions на каждый push и PR.
 
 > Kronos Mini загружается из соседнего проекта `~/kronos-signal/`
 > (модели лежат в `~/kronos-signal/models/Kronos-mini/` и
