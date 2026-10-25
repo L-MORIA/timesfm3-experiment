@@ -199,6 +199,10 @@ def compute_signal(pred_price, last_price):
 
 def compare_signals(kronos_signal, kronos_chg, timesfm_signal, timesfm_chg):
     """Compare two model signals (returns Russian labels)."""
+    # Ошибка модели — не сигнал: "СОВПАДЕНИЕ/ВЫСОКАЯ" на аварийном пути
+    # ложно завышает уверенность (см. ветку kronos_signal = "ERROR" в main()).
+    if "ERROR" in (kronos_signal, timesfm_signal):
+        return "ОШИБКА", "НЕТ"
     if kronos_signal == timesfm_signal:
         agreement = "СОВПАДЕНИЕ"
         confidence = "ВЫСОКАЯ"
@@ -221,10 +225,12 @@ def main():
     if 30 not in HORIZONS:
         print("[WARN] HORIZONS does not contain 30 — 30h chart will be skipped (no cache).")
     # Sanity: TimesFM was compiled with max_horizon=128; do not exceed.
-    assert max(HORIZONS) <= 128, (
-        f"TimesFM max_horizon=128, but HORIZONS={HORIZONS}. "
-        "Recompile TimesFM with a larger max_horizon or shrink HORIZONS."
-    )
+    # raise вместо assert: guard не должен исчезать при python -O.
+    if max(HORIZONS) > 128:
+        raise ValueError(
+            f"TimesFM max_horizon=128, but HORIZONS={HORIZONS}. "
+            "Recompile TimesFM with a larger max_horizon or shrink HORIZONS."
+        )
 
     print("=" * 80)
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M MSK")
@@ -254,6 +260,11 @@ def main():
 
         print(f"  Got {len(df)} hourly candles")
         last_price = float(df["close"].iloc[-1])
+        # last_price=0 даёт ZeroDivisionError в compute_signal (падает весь прогон,
+        # путь Kronos не обёрнут в try), NaN — тихий мусорный сигнал «ДЕРЖАТЬ +nan%».
+        if not np.isfinite(last_price) or last_price <= 0:
+            print(f"  ERROR: bad last close for {ticker}: {last_price}")
+            continue
         last_date = df["begin"].iloc[-1]
         print(f"  Period: {df['begin'].iloc[0].date()} — {last_date.date()}")
         print(f"  Last close: {last_price:.2f} RUB")
@@ -392,6 +403,8 @@ def main():
                 print("  => СОВОКУПНЫЙ: ДЕРЖАТЬ — обе модели видят боковик")
         elif agree == "НЕЙТРАЛЬНО":
             print("  => СОВОКУПНЫЙ: ДЕРЖАТЬ — обе модели близки к текущей цене, нет сигнала")
+        elif agree == "ОШИБКА":
+            print("  => СОВОКУПНЫЙ: НЕТ ДАННЫХ — прогноз одной из моделей не удался")
         else:
             print("  => СОВОКУПНЫЙ: РАСХОЖДЕНИЕ — модели расходятся, ждать подтверждения")
 
@@ -498,6 +511,8 @@ def main():
                     lf.write("  => СОВОКУПНЫЙ: ДЕРЖАТЬ — обе модели видят боковик\n")
             elif agree == "НЕЙТРАЛЬНО":
                 lf.write("  => СОВОКУПНЫЙ: ДЕРЖАТЬ — обе модели близки к текущей цене, нет сигнала\n")
+            elif agree == "ОШИБКА":
+                lf.write("  => СОВОКУПНЫЙ: НЕТ ДАННЫХ — прогноз одной из моделей не удался\n")
             else:
                 lf.write("  => СОВОКУПНЫЙ: РАСХОЖДЕНИЕ — модели расходятся, ждать подтверждения\n")
 

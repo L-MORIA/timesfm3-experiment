@@ -4,6 +4,8 @@
     python -m pytest test_timesfm_kronos_compare.py -q
 """
 
+import datetime
+
 import numpy as np
 import pandas as pd
 
@@ -195,3 +197,132 @@ def test_compare_signals_conflict():
     # Один chg большой, другой маленький — всё равно РАСХОЖДЕНИЕ
     # (условие НЕЙТРАЛЬНО требует оба < 0.5%).
     assert m.compare_signals("ПОКУПКА", 3.0, "ДЕРЖАТЬ", 0.1)[0] == "РАСХОЖДЕНИЕ"
+
+
+# ── Тест 7: ERROR-сигналы не образуют «СОВПАДЕНИЕ» ─────────────
+
+def test_compare_signals_error_is_not_agreement():
+    # Отказ обеих моделей — не «согласие»: раньше возвращалось
+    # ("СОВПАДЕНИЕ", "ВЫСОКАЯ"), что ложно завышало уверенность.
+    assert m.compare_signals("ERROR", 0, "ERROR", 0) == ("ОШИБКА", "НЕТ")
+    assert m.compare_signals("ERROR", 0, "ПОКУПКА", 5.0) == ("ОШИБКА", "НЕТ")
+    assert m.compare_signals("ПОКУПКА", 5.0, "ERROR", 0) == ("ОШИБКА", "НЕТ")
+
+
+# ── Тест 8: обе модели упали → в выводе нет ложного «СОВПАДЕНИЕ» ─
+
+def test_main_error_path_does_not_report_agreement(monkeypatch, capsys):
+    _run_main_with_mocks(
+        monkeypatch,
+        kronos_predict=lambda predictor, df_full, pred_len: None,
+        timesfm_forecast=lambda model, values, horizon: (_ for _ in ()).throw(
+            RuntimeError("model down")),
+    )
+    out = capsys.readouterr().out
+
+    assert "ОШИБКА" in out
+    # Старое поведение печатало "СОВПАДЕНИЕ / ВЫСОКАЯ" на ERROR-сигналах.
+    assert "СОВПАДЕНИЕ" not in out
+    assert "ВЫСОКАЯ" not in out
+
+
+# ── Тест 9: main() пропускает тикер с нулевой последней ценой ──
+
+def test_main_skips_ticker_with_zero_last_price(monkeypatch):
+    kronos_horizons = []
+
+    def fake_kronos_predict(predictor, df_full, pred_len):
+        kronos_horizons.append(pred_len)
+        return np.full(pred_len, 105.0)
+
+    _run_main_with_mocks(
+        monkeypatch,
+        fetch=lambda ticker, days=60: (
+            _fake_df(300, np.zeros(300))
+            if ticker in ("SBERP", "GAZP")
+            else _fake_df(300, np.linspace(100.0, 110.0, 300))
+        ),
+        kronos_predict=fake_kronos_predict,
+    )
+
+    # SBERP/GAZP с нулевой ценой пропущены -> остались 3 горизонта LKOH.
+    assert kronos_horizons == [30, 60, 90]
+
+
+# ── Тест 10: смешанные дни — сбой/пусто/данные → сортировка ────
+
+def test_fetch_mixed_days(monkeypatch):
+    today = datetime.date.today()
+    day_strs = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d")
+                for i in range(3)]
+
+    def fake_get(url, params=None, timeout=None):
+        frm = params["from"]
+        if frm == day_strs[0]:
+            return _FakeResponse(500)  # ретраи исчерпаны — день пропущен
+        if frm == day_strs[1]:
+            return _FakeResponse(200, _candles_payload([]))  # без торгов
+        # последний день: две свечи, намеренно в обратном порядке
+        return _FakeResponse(200, _candles_payload([
+            [6, 7, 8, 9, 5, "2024-01-02 12:00:00"],
+            [1, 2, 3, 4, 5, "2024-01-02 10:00:00"],
+        ]))
+
+    monkeypatch.setattr(m.requests, "get", fake_get)
+    monkeypatch.setattr(m.time, "sleep", lambda *a, **k: None)
+
+    df = m.fetch_moex_candles("SBERP", days=3, retries=2)
+
+    assert df is not None
+    assert len(df) == 2
+    assert df["begin"].is_monotonic_increasing
+
+
+# ── Тест 11: дубликаты begin между днями схлопываются ──────────
+
+def test_fetch_dedups_duplicate_begins(monkeypatch):
+    payload = _candles_payload([[1, 2, 3, 4, 5, "2024-01-01 10:00:00"]])
+    monkeypatch.setattr(
+        m.requests, "get",
+        lambda url, params=None, timeout=None: _FakeResponse(200, payload),
+    )
+    monkeypatch.setattr(m.time, "sleep", lambda *a, **k: None)
+
+    df = m.fetch_moex_candles("SBERP", days=2)
+
+    assert df is not None
+    assert len(df) == 1
+
+
+# ── Хелпер: прогон main() с настраиваемыми моками ──────────────
+
+def _fake_df(n, close):
+    return pd.DataFrame({
+        "begin": pd.date_range("2024-01-01", periods=n, freq="h"),
+        "close": close,
+    })
+
+
+def _run_main_with_mocks(monkeypatch, fetch=None, kronos_predict=None,
+                         timesfm_forecast=None):
+    good_df = _fake_df(300, np.linspace(100.0, 110.0, 300))
+
+    monkeypatch.setattr(m, "load_kronos", lambda: object())
+    monkeypatch.setattr(m, "load_timesfm", lambda: object())
+    monkeypatch.setattr(
+        m, "fetch_moex_candles",
+        fetch if fetch is not None else (lambda ticker, days=60: good_df.copy()),
+    )
+    monkeypatch.setattr(
+        m, "kronos_predict",
+        kronos_predict if kronos_predict is not None
+        else (lambda predictor, df_full, pred_len: np.full(pred_len, 105.0)),
+    )
+    monkeypatch.setattr(
+        m, "timesfm_forecast",
+        timesfm_forecast if timesfm_forecast is not None
+        else (lambda model, values, horizon: np.full(horizon, 105.0)),
+    )
+    monkeypatch.setattr(m.plt, "savefig", lambda *a, **k: None)
+
+    m.main()
