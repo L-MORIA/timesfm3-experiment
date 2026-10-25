@@ -3,11 +3,14 @@
 #   uv venv .venv --python 3.12
 #   uv pip install -r requirements-cuda.txt
 #
-# WARNING (2026-07-17): RTX 5060 Ti (Blackwell, sm_120) is NOT SUPPORTED
-# by current PyTorch (stable or nightly). Use the CPU variant there
-# (requirements-cpu.txt / requirements.txt).
+# WARNING: the cu121 pin below does NOT ship kernels for Blackwell (sm_120,
+# RTX 50xx) — on such GPUs use the CPU variant (requirements-cpu.txt /
+# requirements.txt) or rebuild this stack with the cu128 index
+# (stable PyTorch 2.7+ supports sm_120).
 #
-# After install, switch device="cpu" -> device="cuda" in load_kronos()/load_timesfm().
+# After install, switch device="cpu" -> device="cuda" in load_kronos() and
+# remove the os.environ["CUDA_VISIBLE_DEVICES"] = "-1" override at the top
+# of the scripts (it forces TimesFM to CPU as well).
 
 requests
 numpy

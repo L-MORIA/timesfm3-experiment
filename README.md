@@ -60,9 +60,17 @@ uv pip install -r requirements-cpu.txt
 python timesfm_kronos_compare.py
 ```
 
-> **Важно:** RTX 5060 Ti (Blackwell, sm_120) **не поддерживается** стабильным PyTorch. Используй CPU-вариант. Если у тебя Ampere (RTX 30xx) или новее с поддержкой — CUDA-вариант даст ускорение в 5-10x.
+> **Важно:** пин `cu121` в `requirements-cuda.txt` **не содержит** ядер для Blackwell
+> (sm_120, RTX 50xx) — на таких GPU CUDA-вариант из этого файла упадёт с
+> «no kernel image is available for execution on the device». Стабильный PyTorch 2.7+
+> из индекса `cu128` sm_120 поддерживает — при желании соберите свой стек с
+> `--index-url https://download.pytorch.org/whl/cu128`. Иначе используй CPU-вариант.
+> Если у тебя Ampere (RTX 30xx) или новее с поддержкой — CUDA-вариант даст ускорение в 5-10x.
 
-> **Принудительный CPU:** В `load_kronos()` / `load_timesfm()` стоит `device="cpu"`. Для CUDA запуска поменяй на `device="cuda"`.
+> **Принудительный CPU:** в `load_kronos()` стоит `device="cpu"`, а во всех скриптах
+> в шапке выставляется `os.environ["CUDA_VISIBLE_DEVICES"] = "-1"` (это принуждает
+> к CPU и TimesFM). Для CUDA-запуска поменяй `device` на `"cuda"` в `load_kronos()`
+> и убери переопределение `CUDA_VISIBLE_DEVICES`.
 
 ## Результаты
 
@@ -70,30 +78,25 @@ python timesfm_kronos_compare.py
 - **График**: `timesfm_kronos_comparison.png`
 - **Лог**: `logs/comparison_YYYYMMDD.log` (автоматически)
 
-## Cronjob
-
-Запускается автоматически в 11:00 и 18:00 каждый день через Hermes Agent cron.
-
-```bash
-# Проверить статус cronjob
-hermes cron list
-
-# Запустить вручную
-hermes cron run <job_id>
-```
-
 ## Архитектура
 
 ```
-timesfm-kronos-comparison/
-├── timesfm_kronos_compare.py   # основной скрипт
-├── requirements-cpu.txt        # CPU-only стек (torch CPU)
-├── requirements-cuda.txt       # CUDA стек (torch cu121)
+timesfm3-experiment/
+├── timesfm_kronos_compare.py       # основной скрипт: TimesFM 2.5 + Kronos Mini
+├── timesfm3_parity.py              # эксперимент: 2.5 vs 3.0 univariate
+├── timesfm3_multi.py               # эксперимент: 3.0 multivariate vs univariate
+├── timesfm3_backtest.py            # эксперимент: backtest 2.5/3.0 на истории
+├── timesfm3_backtest_down.py       # эксперимент: backtest на падающем окне
+├── timesfm3_probe.py               # эксперимент: smoke-проба TimesFM-3
+├── requirements.txt                # CPU-only стек (дубль requirements-cpu.txt, для CI-кэша)
+├── requirements-cpu.txt            # CPU-only стек (torch CPU)
+├── requirements-cuda.txt           # CUDA стек (torch cu121)
 ├── test_timesfm_kronos_compare.py  # pytest-тесты (горизонты, fetch, сигналы)
-├── pyproject.toml              # конфигурация ruff для CI
-├── .github/workflows/tests.yml # CI: pytest + ruff на push/PR
-├── logs/                       # результаты (автоматически)
+├── pyproject.toml                  # конфигурация ruff для CI
+├── .github/workflows/tests.yml     # CI: pytest + ruff на push/PR
+├── logs/                           # результаты (автоматически, в .gitignore)
 │   └── comparison_YYYYMMDD.log
+├── LICENSE
 ├── .gitignore
 └── README.md
 ```
@@ -121,9 +124,9 @@ ruff check .
 | **TimesFM 2.5** | 200M params | Foundation Model (Google) | до 128 шагов (часов) |
 | **Kronos Mini** | 4M params | Autoregressive (MOEX) | до ~20 дней |
 
-> **Ограничение горизонта:** `HORIZONS = [30, 60, 90]` (в часах) защищён `assert max(HORIZONS) <= 128`
-> в `main()`. Чтобы выйти за 128 часов, пересоберите TimesFM с большим
-> `max_horizon` в `load_timesfm()`.
+> **Ограничение горизонта:** `HORIZONS = [30, 60, 90]` (в часах) защищён в `main()`:
+> `max(HORIZONS) > 128` → `raise ValueError` (guard переживает запуск с `python -O`).
+> Чтобы выйти за 128 часов, пересоберите TimesFM с большим `max_horizon` в `load_timesfm()`.
 
 ## Сигналы
 

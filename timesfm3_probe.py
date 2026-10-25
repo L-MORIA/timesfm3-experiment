@@ -1,7 +1,6 @@
-"""TimesFM-3 smoke probe — univariate parity scaffold (ЭКСПЕРИМЕНТ, F:/timesfm3-experiment).
+"""TimesFM-3 smoke probe — univariate parity scaffold (ЭКСПЕРИМЕНТ).
 
-Ничего общего с рабочим C:/Users/User/timesfm-kronos-comparison не имеет:
-свой venv, свой скрипт, синтетические данные (без MOEX/HF-зависимостей кроме весов).
+Синтетические данные (без MOEX-зависимостей; нужен только пакет timesfm с весами).
 
 Шаг 1: синтетика -> TimesFM-3 univariate -> shapes + timing.
 Шаг 2 (позже): те же тикеры/горизонты, что в timesfm_kronos_compare.py.
